@@ -7,9 +7,10 @@ const app = express();
 
 // Enhanced CORS for automated testing
 app.use(cors({
-  origin: '*', // Allow all origins for testing (assignment requirement)
+  origin: '*', 
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false
 }));
 
 app.use(express.json());
