@@ -1,8 +1,10 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 
 const NotesList = ({ notes, onEdit, onDelete }) => {
   const { isDarkMode } = useTheme();
+  const { confirm, success } = useToast();
 
   if (notes.length === 0) {
     return (
@@ -78,6 +80,25 @@ const NotesList = ({ notes, onEdit, onDelete }) => {
     return gradients[index % gradients.length];
   };
 
+  // Handle delete with toast confirmation
+  const handleDeleteClick = (note) => {
+    const noteTitle = note.title.length > 30 
+      ? `${note.title.substring(0, 30)}...` 
+      : note.title;
+
+    confirm(
+      `Are you sure you want to delete "${noteTitle}"? This action cannot be undone.`,
+      () => {
+        onDelete(note._id);
+        success(`"${noteTitle}" has been deleted successfully! 🗑️`);
+      },
+      () => {
+        // Optional: Show info toast when cancelled
+        // info('Delete cancelled');
+      }
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Stats */}
@@ -127,7 +148,7 @@ const NotesList = ({ notes, onEdit, onDelete }) => {
                     </svg>
                   </button>
                   <button
-                    onClick={() => onDelete(note._id)}
+                    onClick={() => handleDeleteClick(note)}
                     className="p-2 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 transform hover:scale-110"
                     title="Delete note"
                   >

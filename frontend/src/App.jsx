@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext'; // Add this import
+import { ToastProvider } from './context/ToastContext';
+import ToastContainer from './components/Toast/ToastContainer';
 import Login from './components/Login';
 import Register from './components/Register';
 import DashboardLayout from './components/Dashboard/DashboardLayout'; // Updated import
@@ -72,9 +74,12 @@ const AppContent = () => {
 function App() {
   return (
     <ThemeProvider> {/* Wrap with ThemeProvider */}
+    <ToastProvider>
       <AuthProvider>
         <AppContent />
+        <ToastContainer />
       </AuthProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

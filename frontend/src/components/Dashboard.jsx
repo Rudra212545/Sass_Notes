@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 import { notesAPI, tenantsAPI } from '../services/api';
 import NotesList from './NotesList';
 import NoteForm from './NoteForm';
@@ -9,6 +10,7 @@ import UpgradeModal from './UpgradeModal';
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
+  const { success, error: showError, warning, info } = useToast();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -25,8 +27,11 @@ const Dashboard = () => {
       setLoading(true);
       const response = await notesAPI.getAll();
       setNotes(response.data);
+      setError('');
     } catch (error) {
-      setError('Failed to load notes');
+      const errorMsg = 'Failed to load notes';
+      setError(errorMsg);
+      showError(errorMsg + '. Please refresh the page or try again later.');
     } finally {
       setLoading(false);
     }
@@ -38,11 +43,15 @@ const Dashboard = () => {
       setNotes([response.data, ...notes]);
       setShowForm(false);
       setError('');
+      success('📝 Note created successfully!');
     } catch (error) {
       if (error.response?.data?.code === 'NOTE_LIMIT_REACHED') {
         setShowUpgradeModal(true);
+        warning('⚠️ You have reached your note limit. Upgrade to Pro for unlimited notes!');
       } else {
-        setError(error.response?.data?.error || 'Failed to create note');
+        const errorMsg = error.response?.data?.error || 'Failed to create note';
+        setError(errorMsg);
+        showError('❌ ' + errorMsg);
       }
     }
   };
@@ -53,20 +62,24 @@ const Dashboard = () => {
       setNotes(notes.map(note => note._id === id ? response.data : note));
       setEditingNote(null);
       setError('');
+      success('✏️ Note updated successfully!');
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to update note');
+      const errorMsg = error.response?.data?.error || 'Failed to update note';
+      setError(errorMsg);
+      showError('❌ ' + errorMsg);
     }
   };
 
   const handleDeleteNote = async (id) => {
-    if (window.confirm('Are you sure you want to delete this note?')) {
-      try {
-        await notesAPI.delete(id);
-        setNotes(notes.filter(note => note._id !== id));
-        setError('');
-      } catch (error) {
-        setError(error.response?.data?.error || 'Failed to delete note');
-      }
+    try {
+      await notesAPI.delete(id);
+      setNotes(notes.filter(note => note._id !== id));
+      setError('');
+      // Success toast is shown in NotesList component
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || 'Failed to delete note';
+      setError(errorMsg);
+      showError('❌ ' + errorMsg);
     }
   };
 
@@ -75,10 +88,34 @@ const Dashboard = () => {
       await tenantsAPI.upgrade(user.tenant.slug);
       setShowUpgradeModal(false);
       setError('');
-      alert('Successfully upgraded to Pro! You can now create unlimited notes.');
+      success('🎉 Successfully upgraded to Pro! You can now create unlimited notes.');
+      // Reload notes to refresh any limits
+      setTimeout(() => {
+        loadNotes();
+      }, 1000);
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to upgrade');
+      const errorMsg = error.response?.data?.error || 'Failed to upgrade';
+      setError(errorMsg);
+      showError('❌ Failed to upgrade: ' + errorMsg);
     }
+  };
+
+  const handleLogout = () => {
+    info('👋 Logging out... See you soon!');
+    setTimeout(() => {
+      logout();
+    }, 1000);
+  };
+
+  const handleNewNoteClick = () => {
+    if (user?.tenant?.plan === 'FREE' && notes.length >= 3) {
+      warning('⚠️ You have reached the maximum number of notes for the FREE plan!');
+      setTimeout(() => {
+        setShowUpgradeModal(true);
+      }, 1500);
+      return;
+    }
+    setShowForm(true);
   };
 
   const getTenantColor = (tenantName) => {
@@ -148,7 +185,7 @@ const Dashboard = () => {
 
               {/* Logout */}
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Logout
@@ -160,15 +197,21 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Error Message */}
+        {/* Error Message - Keep for fallback */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <div className="flex items-start">
               <svg className="flex-shrink-0 h-5 w-5 text-red-400 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
               </svg>
-              <div className="ml-3">
+              <div className="ml-3 flex-1">
                 <p className="text-sm font-medium text-red-800 dark:text-red-200">{error}</p>
+                <button 
+                  onClick={() => setError('')}
+                  className="mt-2 text-xs text-red-600 dark:text-red-300 hover:text-red-500 dark:hover:text-red-200 underline"
+                >
+                  Dismiss
+                </button>
               </div>
             </div>
           </div>
@@ -187,10 +230,17 @@ const Dashboard = () => {
                 <span>{notes.length}/3 notes used</span>
                 <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      notes.length >= 3 ? 'bg-red-500' : 'bg-blue-600'
+                    }`}
                     style={{ width: `${Math.min((notes.length / 3) * 100, 100)}%` }}
                   ></div>
                 </div>
+                {notes.length >= 3 && (
+                  <span className="text-red-500 dark:text-red-400 font-medium">
+                    Limit reached!
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -199,13 +249,17 @@ const Dashboard = () => {
         {/* Action Buttons */}
         <div className="flex justify-center space-x-4 mb-8">
           <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            onClick={handleNewNoteClick}
+            className={`inline-flex items-center px-6 py-3 font-medium rounded-lg transition-colors ${
+              user?.tenant?.plan === 'FREE' && notes.length >= 3
+                ? 'bg-gray-400 dark:bg-gray-600 text-white cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
           >
             <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            New Note
+            {user?.tenant?.plan === 'FREE' && notes.length >= 3 ? 'Limit Reached' : 'New Note'}
           </button>
 
           {user?.tenant?.plan === 'FREE' && user?.role === 'ADMIN' && (
